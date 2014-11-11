@@ -91,8 +91,11 @@ CommentStore.prototype = _.create(EventEmitter.prototype, {
 _.assign(CommentStore.prototype, {
     comments: null,
     addComment: function(comment) {
-        console.log('add comment', comment);
-        this.comments.push(comment);
+        if(this.comments.every(function(c) {
+            return c.guid !== comment.guid;
+        })) {
+            this.comments.push(comment);
+        }
     },
     emitChange: function() {
         this.emit('change');
