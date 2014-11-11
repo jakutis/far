@@ -1,11 +1,35 @@
 var express = require('express');
 var bodyParser = require('body-parser');
+var cookieParser = require('cookie-parser');
 var _ = require('lodash');
+var getArgumentNames = require('get-parameter-names');
+
+var cfg = {
+    statics: __dirname + '/app',
+    referer: 'http://localhost:3000/'
+};
+
+global.app = {
+    _container: {},
+    get: function(name) {
+        return this._container[name];
+    },
+    value: function(name, value) {
+        this._container[name] = value;
+    },
+    factory: function(name, factory) {
+        this._container[name] = factory.apply(null, getArgumentNames(factory).map(this.get, this));
+    }
+};
+global.React = require('react');
+require(cfg.statics + '/js/CommentListComponent');
+require(cfg.statics + '/js/CommentsComponent');
 
 var app = express();
 
-app.use(express.static('app'));
+app.use(bodyParser.urlencoded());
 app.use(bodyParser.json());
+app.use(cookieParser());
 
 var actionTypes = {
     ADD_COMMENT: 'ADD_COMMENT'
@@ -103,8 +127,47 @@ app.get('/events', function(req, res) {
 });
 
 app.post('/comments', function(req, res) {
-    commentActions.addComment(req.body);
-    res.send(201);
+    var comment = req.body;
+    if(!comment.guid) {
+        comment.guid = guid();
+    }
+    commentActions.addComment(comment);
+    if(req.cookies.js === 'no') {
+        res.redirect(303, '/');
+    } else {
+        res.send(201);
+    }
 });
 
+function nojs(res) {
+    var str = '<!doctype html><html lang="en"><head><title>ngreact</title><meta charset="utf-8"></head><body>';
+    var CommentsComponent = global.app.get('CommentsComponent');
+    str += global.React.renderComponentToStaticMarkup(CommentsComponent({
+        comments: commentStore.comments
+    }));
+    str += '</body></html>';
+
+    res.send(str);
+}
+
+app.get('/', function(req, res) {
+    console.log('referer', req.headers.referer);
+    if(req.cookies.js === 'no') {
+        console.log('one');
+        nojs(res);
+    } else if(req.cookies.js === 'yes') {
+        console.log('two');
+        res.sendFile(cfg.statics + '/index.html');
+    } else {
+        if(req.headers.referer === cfg.referer) {
+            console.log('three');
+            res.send('no cookies');
+        } else {
+            console.log('four');
+            res.cookie('js', 'no');
+            res.sendFile(cfg.statics + '/index.html');
+        }
+    }
+});
+app.use(express.static('app'));
 app.listen(3000);

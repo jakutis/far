@@ -11,12 +11,19 @@ app.factory('CommentsComponent', function(CommentListComponent) {
         },
         render: function() {
             console.log('render', this.state.value);
-            return React.DOM.div(null, [
+            return React.DOM.form({
+                action: '/comments',
+                method: 'POST',
+                onSubmit: function(event) {
+                    event.preventDefault();
+                }
+            }, [
                 CommentListComponent({
                     comments: this.props.comments
                 }),
                 React.DOM.textarea({
                     value: this.state.value,
+                    name: 'content',
                     onChange: function(event) {
                         console.log('onchange', event.target.value);
                         this.setState({
@@ -24,13 +31,15 @@ app.factory('CommentsComponent', function(CommentListComponent) {
                         });
                     }.bind(this)
                 }),
-                React.DOM.button({
+                React.DOM.input({
+                    type: 'submit',
+                    value: 'Add',
                     onClick: function() {
                         console.log('onclick', this.state.value, this.props);
                         this.props.addNew(this.state.value);
                         this.setState(this.getInitialState());
                     }.bind(this)
-                }, 'Add')
+                })
             ]);
         }
     });

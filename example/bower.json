@@ -17,6 +17,7 @@
   ],
   "dependencies": {
     "ngReact": "~0.1.0",
-    "restangular": "~1.4.0"
+    "restangular": "~1.4.0",
+    "angular-cookies": "~1.3.2"
   }
 }
