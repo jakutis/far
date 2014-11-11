@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <title>ngreact</title>
+        <meta charset="utf-8">
+    </head>
+    <body>
+        <noscript>
+            <meta http-equiv="refresh" content="0;url=/server-side">
+        </noscript>
+        <script src="bower_components/lodash/dist/lodash.js"></script>
+        <script src="bower_components/angular/angular.js"></script>
+        <script src="bower_components/react/react.js"></script>
+        <script src="bower_components/ngReact/ngReact.js"></script>
+        <script src="bower_components/restangular/dist/restangular.js"></script>
+        <script>
+var app = angular.module('app', ['react', 'restangular']);
+        </script>
+        <script src="js/CommentsComponent.js"></script>
+        <script src="js/CommentListComponent.js"></script>
+        <script>
+function EventEmitter() {
+    this.listeners = [];
+}
+EventEmitter.prototype = {
+    emit: function(event) {
+        console.log('emit', this, event);
+        this.listeners.forEach(function(listener) {
+            listener(event);
+        });
+    },
+    addListener: function(listener) {
+        this.listeners.push(listener);
+    }
+};
+app.service('dispatcher', EventEmitter);
+
+function CommentStore() {
+    EventEmitter.call(this);
+    this.comments = [];
+}
+CommentStore.prototype = _.create(EventEmitter.prototype, {
+    'constructor': CommentStore
+});
+_.assign(CommentStore.prototype, {
+    comments: null,
+    addComment: function(comment) {
+        this.comments.push(comment);
+    },
+    emitChange: function() {
+        this.emit('change');
+    }
+});
+
+app.factory('commentStore', function(remoteComments, dispatcher, actionTypes) {
+    var commentStore = new CommentStore();
+    var knownComments = [];
+
+    remoteComments.getList().then(function(comments) {
+        var changed = false;
+        comments.forEach(function(comment) {
+            addComment(comment, function() {
+                changed = true;
+            });
+        });
+        if(changed) {
+            commentStore.emitChange();
+        }
+    });
+
+    var addComment = function(comment, onAdd) {
+        if(knownComments.indexOf(comment.guid) < 0) {
+            changed = true;
+            knownComments.push(comment.guid);
+            commentStore.addComment(comment);
+            onAdd(comment);
+        }
+    };
+
+    dispatcher.addListener(function(action) {
+        var changed = false;
+        if(action.actionType === actionTypes.ADD_COMMENT) {
+            addComment(action.item, function(comment) {
+                changed = true;
+                remoteComments.post(comment);
+            });
+        }
+        if(changed) {
+            commentStore.emitChange();
+        }
+    });
+
+    return {
+        addListener: function(l) {
+            commentStore.addListener(l);
+        },
+        getComments: function() {
+            return commentStore.comments.slice();
+        }
+    };
+});
+
+app.value('guid', function guid() {
+    return Date.now().toString() + Math.random().toString();
+});
+
+app.value('actionTypes', {
+    ADD_COMMENT: 'ADD_COMMENT'
+});
+app.factory('remoteComments', function(Restangular) {
+    return Restangular.all('comments');
+});
+app.factory('commentActions', function(dispatcher, actionTypes) {
+    return {
+        addComment: function(item) {
+            dispatcher.emit({
+                actionType: actionTypes.ADD_COMMENT,
+                item: item
+            })
+        }
+    };
+});
+app.controller('commentsController', function($scope, commentActions, commentStore, guid) {
+    reloadComments();
+
+    $scope.addNew = function(comment) {
+        commentActions.addComment({
+            guid: guid(),
+            content: comment
+        });
+    }
+
+    commentStore.addListener(reloadComments);
+
+    function reloadComments() {
+        $scope.comments = commentStore.getComments();
+    }
+});
+app.run(function(Restangular, dispatcher) {
+    var events = Restangular.all('events');
+
+    function poll() {
+        events.getList().then(function(events) {
+            events.forEach(function(event) {
+                dispatcher.emit(event.plain());
+            });
+            poll();
+        }, poll);
+    }
+
+    poll();
+});
+app.directive('comments', function(reactDirective) {
+    return reactDirective('CommentsComponent');
+});
+app.directive('commentList', function(reactDirective) {
+    return reactDirective('CommentListComponent');
+});
+        </script>
+        <div ng-app="app">
+            <comments ng-controller="commentsController" comments="comments" add-new="addNew" />
+        </div>
+    </body>
+</html>
