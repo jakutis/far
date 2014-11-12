@@ -1,23 +1,6 @@
 app.factory('commentStore', function(remoteComments, dispatcher, actionTypes, EventEmitter) {
-    function CommentStore() {
-        EventEmitter.call(this);
-        this.comments = [];
-    }
-    CommentStore.prototype = _.create(EventEmitter.prototype, {
-        'constructor': CommentStore
-    });
-    _.assign(CommentStore.prototype, {
-        comments: null,
-        addComment: function(comment) {
-            this.comments.push(comment);
-        },
-        emitChange: function() {
-            this.emit('change');
-        }
-    });
-
-    var commentStore = new CommentStore();
-    var knownComments = [];
+    var comments = [];
+    var emitter = new EventEmitter();
 
     remoteComments.getList().then(function(comments) {
         var changed = false;
@@ -27,14 +10,15 @@ app.factory('commentStore', function(remoteComments, dispatcher, actionTypes, Ev
             });
         });
         if(changed) {
-            commentStore.emitChange();
+            emitter.emit('change');
         }
     });
 
     var addComment = function(comment, onAdd) {
-        if(knownComments.indexOf(comment.guid) < 0) {
-            knownComments.push(comment.guid);
-            commentStore.addComment(comment);
+        if(comments.every(function(c) {
+            return c.guid !== comment.guid;
+        })) {
+            comments.push(comment);
             onAdd(comment);
         }
     };
@@ -48,16 +32,16 @@ app.factory('commentStore', function(remoteComments, dispatcher, actionTypes, Ev
             });
         }
         if(changed) {
-            commentStore.emitChange();
+            emitter.emit('change');
         }
     });
 
     return {
         addListener: function(l) {
-            commentStore.addListener(l);
+            emitter.addListener(l);
         },
         getComments: function() {
-            return commentStore.comments.slice();
+            return comments.slice();
         }
     };
 });
