@@ -80,4 +80,6 @@ app.use(express.static('app'));
 
 var rootApp = express();
 rootApp.use(get('cfg').base.path, app);
-rootApp.listen(3000);
+rootApp.listen(get('cfg').listen.port, get('cfg').listen.hostname);
+
+console.log('Your app is now available on ' + get('cfg').base.url + get('cfg').base.path + '/ (as specified in ./app/js/cfg.js)');
