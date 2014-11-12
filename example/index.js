@@ -59,7 +59,7 @@ app.post('/comments', function(req, res) {
 });
 app.get('/', function(req, res) {
     if(req.cookies.js === 'no') {
-        var str = '<!doctype html><html lang="en"><head><title>ngreact</title><meta charset="utf-8"></head><body>';
+        var str = '<!doctype html><html lang="en"><head><title>far</title><meta charset="utf-8"></head><body>';
         str += global.React.renderComponentToStaticMarkup(get('CommentsComponent')({
             comments: get('commentStore').getComments()
         }));
