@@ -10,7 +10,6 @@ app.factory('CommentsComponent', function(CommentListComponent) {
             addNew: React.PropTypes.func
         },
         render: function() {
-            console.log('render', this.state.value);
             return React.DOM.form({
                 action: '/comments',
                 method: 'POST',
@@ -25,7 +24,6 @@ app.factory('CommentsComponent', function(CommentListComponent) {
                     value: this.state.value,
                     name: 'content',
                     onChange: function(event) {
-                        console.log('onchange', event.target.value);
                         this.setState({
                             value: event.target.value
                         });
@@ -35,7 +33,6 @@ app.factory('CommentsComponent', function(CommentListComponent) {
                     type: 'submit',
                     value: 'Add',
                     onClick: function() {
-                        console.log('onclick', this.state.value, this.props);
                         this.props.addNew(this.state.value);
                         this.setState(this.getInitialState());
                     }.bind(this)

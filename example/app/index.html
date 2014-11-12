@@ -19,41 +19,33 @@ var app = angular.module('app', ['react', 'restangular', 'ngCookies']);
         </script>
         <script src="js/CommentsComponent.js"></script>
         <script src="js/CommentListComponent.js"></script>
+        <script src="js/EventEmitter.js"></script>
+        <script src="js/dispatcher.js"></script>
+        <script src="js/guid.js"></script>
+        <script src="js/actionTypes.js"></script>
+        <script src="js/actionCreators.js"></script>
         <script>
-function EventEmitter() {
-    this.listeners = [];
-}
-EventEmitter.prototype = {
-    emit: function(event) {
-        console.log('emit', this, event);
-        this.listeners.forEach(function(listener) {
-            listener(event);
-        });
-    },
-    addListener: function(listener) {
-        this.listeners.push(listener);
+app.factory('CommentStore', function(EventEmitter) {
+    function CommentStore() {
+        EventEmitter.call(this);
+        this.comments = [];
     }
-};
-app.service('dispatcher', EventEmitter);
-
-function CommentStore() {
-    EventEmitter.call(this);
-    this.comments = [];
-}
-CommentStore.prototype = _.create(EventEmitter.prototype, {
-    'constructor': CommentStore
-});
-_.assign(CommentStore.prototype, {
-    comments: null,
-    addComment: function(comment) {
-        this.comments.push(comment);
-    },
-    emitChange: function() {
-        this.emit('change');
-    }
+    CommentStore.prototype = _.create(EventEmitter.prototype, {
+        'constructor': CommentStore
+    });
+    _.assign(CommentStore.prototype, {
+        comments: null,
+        addComment: function(comment) {
+            this.comments.push(comment);
+        },
+        emitChange: function() {
+            this.emit('change');
+        }
+    });
+    return CommentStore;
 });
 
-app.factory('commentStore', function(remoteComments, dispatcher, actionTypes) {
+app.factory('commentStore', function(CommentStore, remoteComments, dispatcher, actionTypes) {
     var commentStore = new CommentStore();
     var knownComments = [];
 
@@ -101,31 +93,14 @@ app.factory('commentStore', function(remoteComments, dispatcher, actionTypes) {
     };
 });
 
-app.value('guid', function guid() {
-    return Date.now().toString() + Math.random().toString();
-});
-
-app.value('actionTypes', {
-    ADD_COMMENT: 'ADD_COMMENT'
-});
 app.factory('remoteComments', function(Restangular) {
     return Restangular.all('comments');
 });
-app.factory('commentActions', function(dispatcher, actionTypes) {
-    return {
-        addComment: function(item) {
-            dispatcher.emit({
-                actionType: actionTypes.ADD_COMMENT,
-                item: item
-            })
-        }
-    };
-});
-app.controller('commentsController', function($scope, commentActions, commentStore, guid) {
+app.controller('commentsController', function($scope, actionCreators, commentStore, guid) {
     reloadComments();
 
     $scope.addNew = function(comment) {
-        commentActions.addComment({
+        actionCreators.addComment({
             guid: guid(),
             content: comment
         });
