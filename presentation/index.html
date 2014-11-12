@@ -124,34 +124,35 @@
         <section>
             <h2>What / frontend view</h2>
             <pre><code class="html">
-&lt;!doctype html>
-&lt;html lang="en">
-    &lt;head>
-        <title>ngreact</title>
-        <meta charset="utf-8">
-    &lt;/head>
-    &lt;body>
-        <noscript>
-            <meta http-equiv="refresh" content="0;url=/">
-        </noscript>
-        <script src="bower_components/lodash/dist/lodash.js"></script>
-        <script src="bower_components/angular/angular.js"></script>
-        <script src="bower_components/react/react.js"></script>
-        <script src="bower_components/ngReact/ngReact.js"></script>
-        <script src="bower_components/angular-cookies/angular-cookies.js"></script>
-        <script src="bower_components/restangular/dist/restangular.js"></script>
-        <script>
+&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+    &lt;head&gt;
+        &lt;title&gt;ngreact&lt;/title&gt;
+        &lt;meta charset=&quot;utf-8&quot;&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        &lt;noscript&gt;
+            &lt;meta http-equiv=&quot;refresh&quot; content=&quot;0;url=/&quot;&gt;
+        &lt;/noscript&gt;
+        &lt;script src=&quot;bower_components/lodash/dist/lodash.js&quot;&gt;&lt;/script&gt;
+        &lt;script src=&quot;bower_components/angular/angular.js&quot;&gt;&lt;/script&gt;
+        &lt;script src=&quot;bower_components/react/react.js&quot;&gt;&lt;/script&gt;
+        &lt;script src=&quot;bower_components/ngReact/ngReact.js&quot;&gt;&lt;/script&gt;
+        &lt;script src=&quot;bower_components/angular-cookies/angular-cookies.js&quot;&gt;&lt;/script&gt;
+        &lt;script src=&quot;bower_components/restangular/dist/restangular.js&quot;&gt;&lt;/script&gt;
+        &lt;script&gt;
 var app = angular.module('app', ['react', 'restangular', 'ngCookies']);
-        </script>
-        <script src="js/CommentsComponent.js"></script>
-        <script src="js/CommentListComponent.js"></script>
-        <script src="js/EventEmitter.js"></script>
-        <script src="js/dispatcher.js"></script>
-        <script src="js/guid.js"></script>
-        <script src="js/actionTypes.js"></script>
-        <script src="js/actionCreators.js"></script>
-        <script src="js/commentStore.js"></script>
-        <script>
+        &lt;/script&gt;
+        &lt;script src=&quot;js/cfg.js&quot;&gt;&lt;/script&gt;
+        &lt;script src=&quot;js/CommentsComponent.js&quot;&gt;&lt;/script&gt;
+        &lt;script src=&quot;js/CommentListComponent.js&quot;&gt;&lt;/script&gt;
+        &lt;script src=&quot;js/EventEmitter.js&quot;&gt;&lt;/script&gt;
+        &lt;script src=&quot;js/dispatcher.js&quot;&gt;&lt;/script&gt;
+        &lt;script src=&quot;js/guid.js&quot;&gt;&lt;/script&gt;
+        &lt;script src=&quot;js/actionTypes.js&quot;&gt;&lt;/script&gt;
+        &lt;script src=&quot;js/actionCreators.js&quot;&gt;&lt;/script&gt;
+        &lt;script src=&quot;js/commentStore.js&quot;&gt;&lt;/script&gt;
+        &lt;script&gt;
 app.factory('remoteComments', function(Restangular) {
     return Restangular.all('comments');
 });
@@ -171,7 +172,8 @@ app.controller('commentsController', function($scope, actionCreators, commentSto
         $scope.comments = commentStore.getComments();
     }
 });
-app.run(function(Restangular, dispatcher, $cookies) {
+app.run(function(Restangular, dispatcher, $cookies, cfg) {
+    Restangular.setBaseUrl(cfg.base.path);
     $cookies.js = 'yes';
 
     var events = Restangular.all('events');
@@ -190,12 +192,12 @@ app.run(function(Restangular, dispatcher, $cookies) {
 app.directive('comments', function(reactDirective) {
     return reactDirective('CommentsComponent');
 });
-        </script>
-        <div ng-app="app">
-            <comments ng-controller="commentsController" comments="comments" add-new="addNew" />
-        </div>
-    &lt;/body>
-&lt;/html>
+        &lt;/script&gt;
+        &lt;div ng-app=&quot;app&quot;&gt;
+            &lt;comments ng-controller=&quot;commentsController&quot; comments=&quot;comments&quot; add-new=&quot;addNew&quot; /&gt;
+        &lt;/div&gt;
+    &lt;/body&gt;
+&lt;/html&gt;
             </code></pre>
         </section>
         <section>
@@ -204,15 +206,37 @@ app.directive('comments', function(reactDirective) {
 var express = require('express');
 var bodyParser = require('body-parser');
 var cookieParser = require('cookie-parser');
+var getArgumentNames = require('get-parameter-names');
 
-var cfg = {
-    statics: __dirname + '/app',
-    referer: 'http://localhost:3000/'
+var get = function(name) {
+    return global.app._container[name];
 };
-
-var get = require('./js/globalApp')(cfg);
+global.app = {
+    _container: {
+    },
+    value: function(name, value) {
+        this._container[name] = value;
+    },
+    factory: function(name, factory) {
+        this._container[name] = factory.apply(null, getArgumentNames(factory).map(get));
+    }
+};
+global.React = require('react');
+require(__dirname + '/app/js/cfg');
+require(__dirname + '/app/js/CommentListComponent');
+require(__dirname + '/app/js/CommentsComponent');
+require(__dirname + '/app/js/guid');
+require(__dirname + '/app/js/EventEmitter');
+require(__dirname + '/app/js/dispatcher');
+require(__dirname + '/app/js/actionTypes');
+require(__dirname + '/app/js/actionCreators');
+require('./js/commentStore');
 
 var app = express();
+app.use(function(req, res, next) {
+    console.log('%s %s %s', req.method, req.url, req.path);
+    next();
+});
 app.use(bodyParser.urlencoded());
 app.use(bodyParser.json());
 app.use(cookieParser());
@@ -233,32 +257,35 @@ app.post('/comments', function(req, res) {
         get('actionCreators').addComment(comment);
     });
     if(req.cookies.js === 'no') {
-        res.redirect(303, '/');
+        res.redirect(303, get('cfg').base.path + '/');
     } else {
         res.send(201);
     }
 });
 app.get('/', function(req, res) {
     if(req.cookies.js === 'no') {
-        var str = '<!doctype html><html lang="en"><head><title>ngreact</title><meta charset="utf-8"></head><body>';
+        var str = '&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;title&gt;ngreact&lt;/title&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;/head&gt;&lt;body&gt;';
         str += global.React.renderComponentToStaticMarkup(get('CommentsComponent')({
             comments: get('commentStore').getComments()
         }));
-        str += '</body></html>';
+        str += '&lt;/body&gt;&lt;/html&gt;';
         res.send(str);
     } else if(req.cookies.js === 'yes') {
-        res.sendFile(cfg.statics + '/index.html');
+        res.sendFile(__dirname + '/app/index.html');
     } else {
-        if(req.headers.referer === cfg.referer) {
+        if(req.headers.referer === get('cfg').base.url + get('cfg').base.path + '/') {
             res.send('no cookies');
         } else {
             res.cookie('js', 'no');
-            res.sendFile(cfg.statics + '/index.html');
+            res.sendFile(__dirname + '/app/index.html');
         }
     }
 });
 app.use(express.static('app'));
-app.listen(3000);
+
+var rootApp = express();
+rootApp.use(get('cfg').base.path, app);
+rootApp.listen(3000);
             </code></pre>
         </section>
         <section>
@@ -401,7 +428,7 @@ app.value('CommentListComponent', React.createClass({
         }));
     }
 }));
-app.factory('CommentsComponent', function(CommentListComponent) {
+app.factory('CommentsComponent', function(CommentListComponent, cfg) {
     return React.createClass({
         getInitialState: function() {
             return {
@@ -414,7 +441,7 @@ app.factory('CommentsComponent', function(CommentListComponent) {
         },
         render: function() {
             return React.DOM.form({
-                action: '/comments',
+                action: cfg.base.path + '/comments',
                 method: 'POST',
                 onSubmit: function(event) {
                     event.preventDefault();
