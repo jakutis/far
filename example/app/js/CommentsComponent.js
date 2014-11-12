@@ -1,4 +1,4 @@
-app.factory('CommentsComponent', function(CommentListComponent) {
+app.factory('CommentsComponent', function(CommentListComponent, cfg) {
     return React.createClass({
         getInitialState: function() {
             return {
@@ -11,7 +11,7 @@ app.factory('CommentsComponent', function(CommentListComponent) {
         },
         render: function() {
             return React.DOM.form({
-                action: '/comments',
+                action: cfg.base.path + '/comments',
                 method: 'POST',
                 onSubmit: function(event) {
                     event.preventDefault();

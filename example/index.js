@@ -1,15 +1,37 @@
 var express = require('express');
 var bodyParser = require('body-parser');
 var cookieParser = require('cookie-parser');
+var getArgumentNames = require('get-parameter-names');
 
-var cfg = {
-    statics: __dirname + '/app',
-    referer: 'http://localhost:3000/'
+var get = function(name) {
+    return global.app._container[name];
 };
-
-var get = require('./js/globalApp')(cfg);
+global.app = {
+    _container: {
+    },
+    value: function(name, value) {
+        this._container[name] = value;
+    },
+    factory: function(name, factory) {
+        this._container[name] = factory.apply(null, getArgumentNames(factory).map(get));
+    }
+};
+global.React = require('react');
+require(__dirname + '/app/js/cfg');
+require(__dirname + '/app/js/CommentListComponent');
+require(__dirname + '/app/js/CommentsComponent');
+require(__dirname + '/app/js/guid');
+require(__dirname + '/app/js/EventEmitter');
+require(__dirname + '/app/js/dispatcher');
+require(__dirname + '/app/js/actionTypes');
+require(__dirname + '/app/js/actionCreators');
+require('./js/commentStore');
 
 var app = express();
+app.use(function(req, res, next) {
+    console.log('%s %s %s', req.method, req.url, req.path);
+    next();
+});
 app.use(bodyParser.urlencoded());
 app.use(bodyParser.json());
 app.use(cookieParser());
@@ -30,7 +52,7 @@ app.post('/comments', function(req, res) {
         get('actionCreators').addComment(comment);
     });
     if(req.cookies.js === 'no') {
-        res.redirect(303, '/');
+        res.redirect(303, get('cfg').base.path + '/');
     } else {
         res.send(201);
     }
@@ -44,15 +66,18 @@ app.get('/', function(req, res) {
         str += '</body></html>';
         res.send(str);
     } else if(req.cookies.js === 'yes') {
-        res.sendFile(cfg.statics + '/index.html');
+        res.sendFile(__dirname + '/app/index.html');
     } else {
-        if(req.headers.referer === cfg.referer) {
+        if(req.headers.referer === get('cfg').base.url + get('cfg').base.path + '/') {
             res.send('no cookies');
         } else {
             res.cookie('js', 'no');
-            res.sendFile(cfg.statics + '/index.html');
+            res.sendFile(__dirname + '/app/index.html');
         }
     }
 });
 app.use(express.static('app'));
-app.listen(3000);
+
+var rootApp = express();
+rootApp.use(get('cfg').base.path, app);
+rootApp.listen(3000);

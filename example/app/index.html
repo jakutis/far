@@ -17,6 +17,7 @@
         <script>
 var app = angular.module('app', ['react', 'restangular', 'ngCookies']);
         </script>
+        <script src="js/cfg.js"></script>
         <script src="js/CommentsComponent.js"></script>
         <script src="js/CommentListComponent.js"></script>
         <script src="js/EventEmitter.js"></script>
@@ -45,7 +46,8 @@ app.controller('commentsController', function($scope, actionCreators, commentSto
         $scope.comments = commentStore.getComments();
     }
 });
-app.run(function(Restangular, dispatcher, $cookies) {
+app.run(function(Restangular, dispatcher, $cookies, cfg) {
+    Restangular.setBaseUrl(cfg.base.path);
     $cookies.js = 'yes';
 
     var events = Restangular.all('events');
