@@ -241,7 +241,13 @@ app.use(bodyParser.urlencoded());
 app.use(bodyParser.json());
 app.use(cookieParser());
 app.get('/comments', function (req, res) {
-    res.send(get('commentStore').getComments());
+    get('commentStore').getComments(function(err, comments) {
+        if(err) {
+            res.status(500).send('no comments');
+            return;
+        }
+        res.send(comments);
+    });
 });
 app.get('/events', function(req, res) {
     get('dispatcher').once(function(action) {
@@ -264,12 +270,18 @@ app.post('/comments', function(req, res) {
 });
 app.get('/', function(req, res) {
     if(req.cookies.js === 'no') {
-        var str = '&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;title&gt;ngreact&lt;/title&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;/head&gt;&lt;body&gt;';
-        str += global.React.renderComponentToStaticMarkup(get('CommentsComponent')({
-            comments: get('commentStore').getComments()
-        }));
-        str += '&lt;/body&gt;&lt;/html&gt;';
-        res.send(str);
+        get('commentStore').getComments(function(err, comments) {
+            if(err) {
+                res.status(500).send('no comments');
+                return;
+            }
+            var str = '&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;title&gt;far&lt;/title&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;/head&gt;&lt;body&gt;';
+            str += global.React.renderComponentToStaticMarkup(get('CommentsComponent')({
+                comments: comments
+            }));
+            str += '&lt;/body&gt;&lt;/html&gt;';
+            res.send(str);
+        });
     } else if(req.cookies.js === 'yes') {
         res.sendFile(__dirname + '/app/index.html');
     } else {
@@ -285,32 +297,17 @@ app.use(express.static('app'));
 
 var rootApp = express();
 rootApp.use(get('cfg').base.path, app);
-rootApp.listen(3000);
+rootApp.listen(get('cfg').listen.port, get('cfg').listen.hostname);
+
+console.log('Your app is now available on ' + get('cfg').base.url + get('cfg').base.path + '/ (as specified in ./app/js/cfg.js)');
             </code></pre>
         </section>
         <section>
             <h2>What / frontend store</h2>
             <pre><code class="javascript">
 app.factory('commentStore', function(remoteComments, dispatcher, actionTypes, EventEmitter) {
-    function CommentStore() {
-        EventEmitter.call(this);
-        this.comments = [];
-    }
-    CommentStore.prototype = _.create(EventEmitter.prototype, {
-        'constructor': CommentStore
-    });
-    _.assign(CommentStore.prototype, {
-        comments: null,
-        addComment: function(comment) {
-            this.comments.push(comment);
-        },
-        emitChange: function() {
-            this.emit('change');
-        }
-    });
-
-    var commentStore = new CommentStore();
-    var knownComments = [];
+    var comments = [];
+    var emitter = new EventEmitter();
 
     remoteComments.getList().then(function(comments) {
         var changed = false;
@@ -320,14 +317,15 @@ app.factory('commentStore', function(remoteComments, dispatcher, actionTypes, Ev
             });
         });
         if(changed) {
-            commentStore.emitChange();
+            emitter.emit('change');
         }
     });
 
     var addComment = function(comment, onAdd) {
-        if(knownComments.indexOf(comment.guid) &lt; 0) {
-            knownComments.push(comment.guid);
-            commentStore.addComment(comment);
+        if(comments.every(function(c) {
+            return c.guid !== comment.guid;
+        })) {
+            comments.push(comment);
             onAdd(comment);
         }
     };
@@ -341,75 +339,58 @@ app.factory('commentStore', function(remoteComments, dispatcher, actionTypes, Ev
             });
         }
         if(changed) {
-            commentStore.emitChange();
+            emitter.emit('change');
         }
     });
 
     return {
         addListener: function(l) {
-            commentStore.addListener(l);
+            emitter.addListener(l);
         },
         getComments: function() {
-            return commentStore.comments.slice();
+            return comments.slice();
         }
     };
 });
-
-
             </code></pre>
         </section>
         <section>
             <h2>What / backend store</h2>
             <pre><code class="javascript">
-var _ = require('lodash');
 global.app.factory('commentStore', function(guid, EventEmitter, dispatcher, actionTypes) {
-    function CommentStore() {
-        EventEmitter.call(this);
-        this.comments = [
-            {
-                guid: guid(),
-                content: 'This is awesome'
-            },
-            {
-                guid: guid(),
-                content: 'I agree'
-            },
-            {
-                guid: guid(),
-                content: 'First'
-            }
-        ];
-    }
-    CommentStore.prototype = _.create(EventEmitter.prototype, {
-        'constructor': CommentStore
-    });
-    _.assign(CommentStore.prototype, {
-        comments: null,
-        addComment: function(comment) {
-            if(this.comments.every(function(c) {
-                return c.guid !== comment.guid;
-            })) {
-                this.comments.push(comment);
-            }
-        },
-        emitChange: function() {
-            this.emit('change');
-        }
-    });
+    var sqlite3 = require('sqlite3').verbose();
+    var db = new sqlite3.Database(':memory:');
 
-    var commentStore = new CommentStore();
+    db.run(&quot;CREATE TABLE comments (guid TEXT, content TEXT)&quot;);
+
+    var guids = [];
     dispatcher.addListener(function(action) {
         if(action.actionType === actionTypes.ADD_COMMENT) {
-            commentStore.addComment(action.item);
+            if(guids.indexOf(action.item.guid) &lt; 0) {
+                guids.push(action.item.guid);
+                var stmt = db.prepare(&quot;INSERT INTO comments VALUES (?, ?)&quot;);
+                stmt.run(action.item.guid, action.item.content);
+                stmt.finalize();
+            }
         }
-        commentStore.emitChange();
     });
     return {
-        addListener: function(l) {
-            commentStore.addListener(l);
-        },
-        getComments: function() {
-            return commentStore.comments.slice();
+        getComments: function(cb) {
+            var comments = [];
+            db.each(&quot;SELECT content, guid FROM comments&quot;, function(err, row) {
+                if(err) {
+                    return;
+                }
+                comments.push({
+                    guid: row.guid,
+                    content: row.content
+                });
+            }, function(err) {
+                if(err) {
+                    return cb(err);
+                }
+                cb(null, comments);
+            });
         }
     };
 });
