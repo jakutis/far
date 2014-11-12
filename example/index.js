@@ -36,7 +36,13 @@ app.use(bodyParser.urlencoded());
 app.use(bodyParser.json());
 app.use(cookieParser());
 app.get('/comments', function (req, res) {
-    res.send(get('commentStore').getComments());
+    get('commentStore').getComments(function(err, comments) {
+        if(err) {
+            res.status(500).send('no comments');
+            return;
+        }
+        res.send(comments);
+    });
 });
 app.get('/events', function(req, res) {
     get('dispatcher').once(function(action) {
@@ -59,12 +65,18 @@ app.post('/comments', function(req, res) {
 });
 app.get('/', function(req, res) {
     if(req.cookies.js === 'no') {
-        var str = '<!doctype html><html lang="en"><head><title>far</title><meta charset="utf-8"></head><body>';
-        str += global.React.renderComponentToStaticMarkup(get('CommentsComponent')({
-            comments: get('commentStore').getComments()
-        }));
-        str += '</body></html>';
-        res.send(str);
+        get('commentStore').getComments(function(err, comments) {
+            if(err) {
+                res.status(500).send('no comments');
+                return;
+            }
+            var str = '<!doctype html><html lang="en"><head><title>far</title><meta charset="utf-8"></head><body>';
+            str += global.React.renderComponentToStaticMarkup(get('CommentsComponent')({
+                comments: comments
+            }));
+            str += '</body></html>';
+            res.send(str);
+        });
     } else if(req.cookies.js === 'yes') {
         res.sendFile(__dirname + '/app/index.html');
     } else {
